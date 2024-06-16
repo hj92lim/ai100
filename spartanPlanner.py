@@ -259,7 +259,7 @@ if st.session_state.page == 1:
     st.markdown(
         """
         <div style="text-align: center; margin-bottom: 20px;">
-            <img src="https://github.com/hj92lim/ai100/blob/main/vincentj.png?raw=true" style="width: 600px; height: auto;">
+            <img src="https://github.com/hj92lim/ai100/blob/main/vincentj.png?raw=true" style="width: 300px; height: auto;">
         </div>
         """,
         unsafe_allow_html=True,
