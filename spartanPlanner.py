@@ -3,12 +3,26 @@ import json
 import streamlit as st
 from openai import OpenAI
 from datetime import datetime, timedelta
-
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
 import calendar
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
+
+import os
+import json
+import streamlit as st
+from openai import OpenAI
+from datetime import datetime, timedelta
+import pandas as pd
+import plotly.graph_objects as go
+import calendar
+import numpy as np
+import plotly.express as px
+import pandas as pd
 
 os.environ["OPENAI_API_KEY"] = st.secrets['API_KEY']
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -124,6 +138,7 @@ if 'page' not in st.session_state:
     st.session_state.end_date = None
     st.session_state.todo_list = None
     st.session_state.final_goal = None
+    st.session_state.selected_day = None  # selected_day 초기화 추가
 
 if 'todo_list' not in st.session_state:
     st.session_state.todo_list = None
@@ -228,16 +243,8 @@ def get_nagging_message(progress_diff):
         return "환상적이야! 목표를 완전히 달성했어!"
     
 # 페이지 1: 소개 페이지
-# if st.session_state.page == 1:
 if st.session_state.page == 1:
-    col1, col2 = st.columns([1, 9])  # 제목과 버튼을 나란히 배치하기 위해 두 개의 컬럼 생성
-    with col1:
-        if st.button("📈"):
-            st.session_state.page = 5
-            st.experimental_rerun()
-    with col2:
-        st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
-    # st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
     st.markdown(
         f"""
         <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
@@ -303,13 +310,7 @@ elif st.session_state.page == 2:
 
 # 페이지 3: 대화창 페이지
 elif st.session_state.page == 3:
-    col1, col2 = st.columns([1, 9])  # 제목과 버튼을 나란히 배치하기 위해 두 개의 컬럼 생성
-    with col1:
-        if st.button("📈"):
-            st.session_state.page = 5
-            st.experimental_rerun()
-    with col2:
-        st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
 
     # 날짜 선택
     col1, col2 = st.columns(2)
@@ -505,17 +506,40 @@ elif st.session_state.page == 3:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # 페이지 4: 월간 목표, 주간 목표, 일별 목표 페이지
-# elif st.session_state.page == 4:
-#     st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
-    
 elif st.session_state.page == 4:
-    col1, col2 = st.columns([1, 9])  # 제목과 버튼을 나란히 배치하기 위해 두 개의 컬럼 생성
-    with col1:
-        if st.button("📈"):
-            st.session_state.page = 5
-            st.experimental_rerun()
-    with col2:
-        st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
+    # Week and Day Mapping
+    def create_week_day_mapping(start_date, end_date):
+        total_days = (end_date - start_date).days + 1
+        week_day_mapping = {}
+        current_week = 1
+        current_week_days = []
+
+        for day in range(1, total_days + 1):
+            current_date = start_date + timedelta(days=day - 1)
+            if current_date.weekday() == 5 or day == total_days:  # Saturday or last day
+                current_week_days.append(day)
+                week_day_mapping[f"week{current_week}"] = current_week_days
+                current_week += 1
+                current_week_days = []
+            else:
+                current_week_days.append(day)
+        
+        return week_day_mapping
+
+    # Task Check Count Mapping
+    def create_task_check_mapping(todo_list):
+        task_check_mapping = {}
+
+        for todo in todo_list:
+            checked_count = sum(task['checked'] for task in todo['tasks'])
+            task_check_mapping[f"day{todo['day']}"] = checked_count
+        
+        return task_check_mapping
+
+    # Update Task Check Count Mapping
+    def update_task_check_mapping():
+        st.session_state.task_check_mapping = create_task_check_mapping(st.session_state.todo_list)
+        save_json("planner_data.json", planner_data)
 
     # JSON 데이터 로드
     planner_data = load_json("planner_data.json")
@@ -523,29 +547,35 @@ elif st.session_state.page == 4:
     st.session_state.weekly_goals = planner_data["weekly_goals"]
     if st.session_state.todo_list is None:
         st.session_state.todo_list = planner_data["todo_list"]
-    
+
     # 목표 시작 연도와 월 표시
     start_date = st.session_state.start_date
+    end_date = st.session_state.end_date
+
     st.header(f"{start_date.year}년 {start_date.month}월")
-    
+
     # 총 계획 일 수 계산
-    total_days = (st.session_state.end_date - st.session_state.start_date).days + 1
+    total_days = (end_date - start_date).days + 1
     st.write(f"총 계획 일 수: {total_days}일")
-    
+
     # 슬라이더로 날짜 선택
     selected_day = st.slider("날짜를 선택하세요", 1, total_days)
     selected_date = start_date + timedelta(days=selected_day - 1)
     st.write(f"선택한 날짜: {selected_date.strftime('%Y-%m-%d')}")
-    
+
+    # Week-Day Mapping
+    week_day_mapping = create_week_day_mapping(start_date, end_date)
+
+    # Task Check Count Mapping
+    if 'task_check_mapping' not in st.session_state:
+        st.session_state.task_check_mapping = create_task_check_mapping(st.session_state.todo_list)
+
     # 선택한 날짜의 주간 목표 및 일별 목표 표시
     selected_week = (selected_day - 1) // 7 + 1
     if selected_week <= len(st.session_state.weekly_goals):
         st.write(f"{selected_week}주차 목표: {st.session_state.weekly_goals[selected_week - 1]}")
-    
+
     st.write("일별 목표:")
-    completed_tasks = 0
-    total_tasks = 0
-    
     for todo in st.session_state.todo_list:
         if todo['day'] == selected_day:
             for i, task_data in enumerate(todo['tasks'], start=1):
@@ -553,468 +583,266 @@ elif st.session_state.page == 4:
                 key = f"day{todo['day']}_task{i}"
                 if key not in st.session_state:
                     st.session_state[key] = task_data['checked']
-                checked = st.checkbox(f"{i}. {task}", key=key)
+                checked = st.checkbox(f"{i}. {task}", key=key, on_change=update_task_check_mapping)
                 if checked != task_data['checked']:
                     task_data['checked'] = checked
                     st.session_state.todo_list[todo['day']-1]['tasks'][i-1]['checked'] = checked
-                
-                if checked:
-                    completed_tasks += 1
-                total_tasks += 1
-    
-    # 체크 여부 업데이트
-    planner_data["todo_list"] = st.session_state.todo_list
-    save_json("planner_data.json", planner_data)
-    
-    print(total_tasks)
-    # 일별 수행 갯수와 미수행 갯수 계산
-    uncompleted_tasks = total_tasks - completed_tasks
-    # st.write(f"수행된 task 갯수: {completed_tasks}")
-    # st.write(f"미수행 task 갯수: {uncompleted_tasks}")
-    
+                    update_task_check_mapping()
+
     # 진척도 계산
-    overall_total_tasks = sum(len(day['tasks']) for day in st.session_state.todo_list)
-    overall_completed_tasks = sum(task['checked'] for day in st.session_state.todo_list for task in day['tasks'])
-    progress = (overall_completed_tasks / overall_total_tasks) * 100 if overall_total_tasks > 0 else 0
-    
+    total_tasks = sum(len(day['tasks']) for day in st.session_state.todo_list)
+    completed_tasks = sum(task['checked'] for day in st.session_state.todo_list for task in day['tasks'])
+    progress = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0
+
     # 예상 진척도 계산
     days_elapsed = (selected_date - st.session_state.start_date).days + 1
     expected_progress = (days_elapsed / total_days) * 100 if total_days > 0 else 0
-    
+
     # 진척도 차이 계산
     progress_diff = progress - expected_progress
-    
+
     # 잔소리 메시지
     nagging_message = get_nagging_message(progress_diff)
-    
+
     st.write(f"진척도: {progress:.2f}% (예상 진척도: {expected_progress:.2f}%)")
     st.markdown(f"<div class='progress-bar'><div class='progress-bar-fill' style='width: {progress:.2f}%'>{progress:.2f}%</div></div>", unsafe_allow_html=True)
-    
+
     st.markdown(f"<div class='centered'>{nagging_message}</div>", unsafe_allow_html=True)
-    
+
     if st.button("⬅️ 뒤로", key='back_chat'):
         st.session_state.page = 3
         st.experimental_rerun()
+
+    if st.button("다음 ➡️", key='next_page'):
+        st.session_state.page = 5
+        st.experimental_rerun()
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 페이지 5: 전체 현황
+
+
+# Week-Day Mapping 함수
+def create_week_day_mapping(start_date, end_date):
+    total_days = (end_date - start_date).days + 1
+    week_day_mapping = {}
+    current_week = 1
+    current_week_days = []
+
+    for day in range(1, total_days + 1):
+        current_date = start_date + timedelta(days=day - 1)
+        if current_date.weekday() == 5 or day == total_days:  # Saturday or last day
+            current_week_days.append(day)
+            week_day_mapping[f"week{current_week}"] = current_week_days
+            current_week += 1
+            current_week_days = []
+        else:
+            current_week_days.append(day)
+    
+    return week_day_mapping
+
+# Task Check Count Mapping 함수
+def create_task_check_mapping(todo_list):
+    task_check_mapping = {}
+
+    for todo in todo_list:
+        checked_count = sum(task['checked'] for task in todo['tasks'])
+        task_check_mapping[f"day{todo['day']}"] = checked_count
+    
+    return task_check_mapping
+
+# 페이지 5: 현황 그래프 페이지
 if st.session_state.page == 5:
-    # 가상의 일정 데이터 생성
-    def generate_sample_data():
-        np.random.seed(0)
-        activities = [
-            "첫 번째 주 목표: 식이조절 시작과 기초 체력 훈련 적응",
-            "두 번째 주 목표: 체력 훈련 강도 증가 및 유산소 운동 추가",
-            "세 번째 주 목표: 근력 운동 강화 및 식단 조절 지속",
-            "네 번째 주 목표: 높은 강도의 운동 유지와 지속 가능한 식습관 정착"
-        ]
-        plan_start = np.array([1, 8, 15, 22])  # 각 주의 시작일
-        plan_duration = np.array([7, 7, 7, 7])  # 각 목표는 일주일간 지속
-        actual_start = plan_start + np.random.randint(-1, 2, size=4)  # 계획 시작일 ± 1일
-        actual_duration = plan_duration + np.random.randint(-1, 2, size=4)  # 계획 기간 ± 1일
-        percent_complete = np.random.randint(0, 101, size=4)
-        data = {
-            'Activity': activities,
-            'Plan Start': plan_start,
-            'Plan Duration': plan_duration,
-            'Actual Start': actual_start,
-            'Actual Duration': actual_duration,
-            'Percent Complete': percent_complete
-        }
-        return pd.DataFrame(data)
+    st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
 
-    # 형광색 생성
-    fluorescent_colors = [
-        "#39FF14", "#FFEA00", "#FF00FF", "#00FFFF", "#FF69B4",
-        "#ADFF2F", "#FF4500", "#7CFC00", "#FFD700", "#40E0D0",
-        "#FF1493", "#8A2BE2", "#00FF7F", "#DC143C", "#1E90FF"
-    ]
+    # 총 계획 일 수 계산
+    total_days = (st.session_state.end_date - st.session_state.start_date).days + 1
+    total_tasks = sum(len(day['tasks']) for day in st.session_state.todo_list)
+    completed_tasks = sum(task['checked'] for day in st.session_state.todo_list for task in day['tasks'])
+    incomplete_tasks = total_tasks - completed_tasks
+    progress = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0
 
-    # 데이터 생성
-    df = generate_sample_data()
+    # Week-Day Mapping
+    week_day_mapping = create_week_day_mapping(st.session_state.start_date, st.session_state.end_date)
+    
+    # Progress per week
+    weekly_progress = []
+    for week, days in week_day_mapping.items():
+        week_tasks = sum(len(st.session_state.todo_list[day-1]['tasks']) for day in days)
+        week_completed_tasks = sum(task['checked'] for day in days for task in st.session_state.todo_list[day-1]['tasks'])
+        weekly_progress.append((week_completed_tasks / week_tasks) * 100 if week_tasks > 0 else 0)
 
-    # 활동별 형광색 설정
-    num_activities = len(df['Activity'])
-    colors = fluorescent_colors[:num_activities]
-    color_map = dict(zip(df['Activity'], colors))
-
-    # 완료되지 않은 작업 수와 완료된 작업수 설정
-    completed_tasks = 1
-    incomplete_tasks = 2
-
-    # 진척도에 따른 피드백 설정 및 배경색 지정
-    if completed_tasks / (completed_tasks + incomplete_tasks) >= 1:
-        feedback = "🎉 모든 작업을 완료했습니다! 훌륭해요!"
-        background_color = "#b2fab4"  # 연한 파스텔 연두색
-    elif completed_tasks / (completed_tasks + incomplete_tasks) >= 2/3:
-        feedback = "👏 거의 다 왔어요! 조금만 더 힘내세요!"
-        background_color = "#fff9b2"  # 연한 파스텔 노랑색
-    elif completed_tasks / (completed_tasks + incomplete_tasks) >= 1/3:
-        feedback = "😵 조금 더 노력해봐요!"
-        background_color = "#e0b3ff"  # 연한 파스텔 보라색
-    else:
-        feedback = "🤬 더 열심히 해야겠어요!"
-        background_color = "#ffb3d9"  # 연한 파스텔 분홍색
-
-    # # Streamlit 애플리케이션
-    # st.markdown("<h1 style='text-align: center;'>🗓️ 스파르타 플래너</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1.2, 4, 1])  # 세 개의 컬럼 생성
-    with col1:
-        if st.button("⬅️ 뒤로"):
-            st.session_state.page = 3  # 페이지 3로 이동
-            st.experimental_rerun()
-    with col2:
-        st.markdown("<h1 style='text-align: center;'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
-    with col3:
-        if st.button("홈 🏠"):
-            st.session_state.page = 1  # 페이지 1로 이동
-            st.experimental_rerun()
-
-    # 작업 개요 표시
-    st.write('#### 📌 오늘의 작업 진척도')
+    # 상단 작업 진척도 메모장 스타일
+    st.markdown("### 📌작업 진척도")
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("""
-        <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; text-align: center;">
-            <h2 style="color: #333;">{}</h2>
-            <p>⭕ 수행완료 작업수</p>
-        </div>
+            <div style="padding: 10px; background-color: #fffacd; border-radius: 5px; border: 1px solid #ddd; position: relative;">
+                <div style="background: repeating-linear-gradient(#fffacd, #fffacd 24px, #d3d3d3 25px); position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.7; pointer-events: none;"></div>
+                <h3 style="text-align: center; color: #333; position: relative; z-index: 1;">완료한 작업</h3>
+                <p style="text-align: center; font-size: 24px; font-weight: bold; position: relative; z-index: 1;">{}</p>
+            </div>
         """.format(completed_tasks), unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
-        <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; text-align: center;">
-            <h2 style="color: #333;">{}</h2>
-            <p>❌ 미수행 작업수</p>
-        </div>
+            <div style="padding: 10px; background-color: #fffacd; border-radius: 5px; border: 1px solid #ddd; position: relative;">
+                <div style="background: repeating-linear-gradient(#fffacd, #fffacd 24px, #d3d3d3 25px); position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.7; pointer-events: none;"></div>
+                <h3 style="text-align: center; color: #333; position: relative; z-index: 1;">미수행 작업</h3>
+                <p style="text-align: center; font-size: 24px; font-weight: bold; position: relative; z-index: 1;">{}</p>
+            </div>
         """.format(incomplete_tasks), unsafe_allow_html=True)
 
-    # 피드백 표시
-    st.markdown(f"""
-    <div style="display: flex; justify-content: center; align-items: center; height: 100px;">
-        <div style="background-color: {background_color}; padding: 10px 20px; border-radius: 10px; text-align: center; font-size: 16px;">
-            💬 오늘의 피드백: {feedback}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # New data integration
-    monthly_goal = "체중 3kg 감량과 근육량 증가"
-    weekly_goals = [
-        "첫 번째 주 목표: 식이조절 시작과 기초 체력 훈련 적응",
-        "두 번째 주 목표: 체력 훈련 강도 증가 및 유산소 운동 추가",
-        "세 번째 주 목표: 근력 운동 강화 및 식단 조절 지속",
-        "네 번째 주 목표: 높은 강도의 운동 유지와 지속 가능한 식습관 정착"
-    ]
-    todo_list = [
-        {
-            "day": 1,
-            "tasks": [
-                {"task": "식단 기록 시작", "checked": False},
-                {"task": "30분 걷기", "checked": True},
-                {"task": "물 2리터 마시기", "checked": False}
-            ]
-        },
-        # Add the remaining days here as needed
-    ]
-
-    # Display todo list for today
-    today = datetime.now().day
-    today_tasks = next((item['tasks'] for item in todo_list if item['day'] == today), [])
-    # st.write('#### 📌 오늘의 할 일')
-    for task in today_tasks:
-        st.checkbox(task['task'], value=task['checked'])
-
-    # 현재 날짜
-    current_date = datetime.now().date()
-
-    # 이번 주의 월요일과 일요일 계산
-    start_of_week = current_date - timedelta(days=current_date.weekday())
-    end_of_week = start_of_week + timedelta(days=6)
-
-    # 하루마다 완료된 작업 수 계산
-    df_tasks = pd.DataFrame({
-        'Date': pd.date_range(start='2024-06-01', periods=30, freq='D'),
-        'Completed Tasks': np.random.randint(0, 5, size=30),
-        'Activity': np.random.choice(df['Activity'], size=30)
-    })
-
-    # 이번 주에 해당하는 데이터 필터링
-    df_tasks_week = df_tasks[(df_tasks['Date'] >= pd.Timestamp(start_of_week)) & (df_tasks['Date'] <= pd.Timestamp(end_of_week))]
-
-    # 일별 작업 완료 그래프 생성
-    fig_tasks = go.Figure()
-
-    for activity in df['Activity']:
-        df_activity = df_tasks_week[df_tasks_week['Activity'] == activity]
-        fig_tasks.add_trace(go.Scatter(
-            x=df_activity['Date'],
-            y=df_activity['Completed Tasks'],
-            mode='lines+markers',
-            name=activity,
-            line=dict(color=color_map[activity], width=5),  # 막대선을 더 두껍게 설정
-            hoverinfo='x+y+name',
-            showlegend=False  # 각 trace에 대해 showlegend=False 설정
-        ))
-
-    st.write('')
-    st.write('#### 📌 주간 작업 진척도')
-
-    fig_tasks.update_layout(
-        xaxis_title='Date',
-        yaxis_title='Number of Completed Tasks',
-        legend_title='Activities',
-        plot_bgcolor='#f9f9f9',  # Task Overview 컬럼 배경색
-        margin=dict(t=10, b=10),  # 상단(t) 및 하단(b) 여백 줄이기
-        height=300,  # 그래프 높이 줄이기
-        xaxis=dict(
-            tickmode='array',
-            tickvals=pd.date_range(start=start_of_week, periods=7, freq='D'),
-            ticktext=['월', '화', '수', '목', '금', '토', '일'],
-            tickfont=dict(size=20)  # 요일 글자 크기 설정
-        ),
-        yaxis=dict(
-            tickmode='linear',
-            tick0=0,
-            dtick=2,  # y축을 2의 배수로 설정
-        ),
-        annotations=[
-            go.layout.Annotation(
-                text=f"{start_of_week.strftime('%m/%d')} - {end_of_week.strftime('%m/%d')}",
-                xref="paper", yref="paper",
-                x=1, y=1.1,
-                showarrow=False,
-                font=dict(size=12, color="black"),
-                bgcolor="#f9f9f9",
-                bordercolor="#f9f9f9",  # 바깥 선 제거
-                borderwidth=0
-            )
-        ]
+    # 전체 목표 진척도 도넛 차트
+    fig = px.pie(
+        values=[completed_tasks, incomplete_tasks],
+        names=['완료된 작업', '미수행 작업'],
+        hole=0.7,
+        color_discrete_sequence=['#87CEEB', '#FFC0CB']  # 연한 하늘색과 연한 분홍색
     )
+    fig.update_traces(textinfo='percent+label', showlegend=False)
 
-    st.plotly_chart(fig_tasks)
-
-    st.write('')
-    st.write('#### 📌 월간 진척도 달력')
-
-    # 달력 생성
-    def generate_calendar(year, month):
-        cal = calendar.Calendar(firstweekday=6)  # Sunday as first day of the week
-        month_days = cal.monthdayscalendar(year, month)
-        return month_days
-
-    # 현재 년과 월을 세션 상태로 저장
-    if 'current_year' not in st.session_state:
-        st.session_state.current_year = current_date.year
-    if 'current_month' not in st.session_state:
-        st.session_state.current_month = current_date.month
-
-    # 이전 달, 다음 달 버튼
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col1:
-        if st.button('⬅️ 이전달'):
-            if st.session_state.current_month == 1:
-                st.session_state.current_year -= 1
-                st.session_state.current_month = 12
-            else:
-                st.session_state.current_month -= 1
-    with col3:
-        if st.button('➡️ 다음달'):
-            if st.session_state.current_month == 12:
-                st.session_state.current_year += 1
-                st.session_state.current_month = 1
-            else:
-                st.session_state.current_month += 1
-
-    # 현재 년과 월 표시
-    with col2:
-        st.markdown(f"<h2 style='text-align: center;'>{st.session_state.current_year}-{st.session_state.current_month:02d}</h2>", unsafe_allow_html=True)
-
-    # 달력 데이터 생성
-    month_days = generate_calendar(st.session_state.current_year, st.session_state.current_month)
-
-    # 진척도 데이터 생성 (가상의 데이터)
-    progress_data = {datetime(st.session_state.current_year, st.session_state.current_month, day).date(): np.random.randint(0, 101) for week in month_days for day in week if day != 0}
-
-    # 달력 그래프 생성
-    fig_calendar = go.Figure()
-
-    for week in month_days:
-        for day in week:
-            if day == 0:
-                continue
-            date = datetime(st.session_state.current_year, st.session_state.current_month, day).date()
-            progress = progress_data.get(date, 0)
-            color = f'rgba(0, 128, 0, {progress / 100})'  # 퍼센트에 따라 진한 녹색
-            fig_calendar.add_shape(
-                type='rect',
-                x0=week.index(day),
-                y0=len(month_days) - month_days.index(week) - 1,
-                x1=week.index(day) + 1,
-                y1=len(month_days) - month_days.index(week),
-                line=dict(width=1, color='black'),
-                fillcolor=color,
-            )
-            fig_calendar.add_trace(go.Scatter(
-                x=[week.index(day) + 0.5],
-                y=[len(month_days) - month_days.index(week) - 0.5],
-                text=[str(day)],
-                mode='text',
-                showlegend=False,  # 각 trace에 대해 showlegend=False 설정
-                textfont=dict(size=30)  # 날짜 글자 크기 설정
-            ))
-
-    fig_calendar.update_layout(
-        xaxis=dict(
-            side='top',  # x축을 상단으로
-            tickmode='array',
-            tickvals=list(range(7)),
-            ticktext=['일', '월', '화', '수', '목', '금', '토'],
-            tickfont=dict(size=20),  # 요일 글자 크기 설정
-            showgrid=False
-        ),
-        yaxis=dict(
-            tickmode='array',
-            tickvals=list(range(len(month_days))),
-            ticktext=[''] * len(month_days),
-            showgrid=False
-        ),
-        plot_bgcolor='#f9f9f9',
-        height=400,
-        width=700,
-        showlegend=False,  # 달력에 대해 showlegend=False 설정
-        margin=dict(t=10, b=10),  # 상단(t) 및 하단(b) 여백 줄이기
-        font=dict(size=20)
-    )
-
-    st.plotly_chart(fig_calendar)
-
-    st.write('')
-    st.write('')
-
-    # 차트와 버튼을 한 줄에 배치
-    col3, col4 = st.columns([3.2, 1])
-    with col3:
-        st.markdown("<h3 style='text-align: left; font-size:24px;'>📌 전체 일정표</h3>", unsafe_allow_html=True)
-    with col4:
-        if st.button('🔍 계획 상세보기'):
-            st.session_state.show_data = not st.session_state.get('show_data', False)
-
-    if 'show_data' in st.session_state and st.session_state.show_data:
-        st.write('#### 📌 계획 상세정보')
-        st.dataframe(df)
-
-    # 차트 생성
-    fig = go.Figure()
-
-    # 계획 기간 바 표시 (회색)
-    fig.add_trace(go.Bar(
-        y=[f'{i+1}번째 주 목표' for i in range(len(df))],  # y축 레이블 수정
-        x=df['Plan Duration'],
-        base=df['Plan Start'],
-        orientation='h',
-        marker=dict(color='lightgray'),
-        name='계획 기간',
-        hoverinfo='skip'
-    ))
-
-    # 실제 기간 바 표시 (연한 하늘색)
-    fig.add_trace(go.Bar(
-        y=[f'{i+1}번째 주 목표' for i in range(len(df))],  # y축 레이블 수정
-        x=df['Actual Duration'],
-        base=df['Actual Start'],
-        orientation='h',
-        marker=dict(color='skyblue'),
-        name='실제 기간',
-        hoverinfo='skip'
-    ))
-
-    # 완료 퍼센티지 바 표시 (진한 하늘색)
-    fig.add_trace(go.Bar(
-        y=[f'{i+1}번째 주 목표' for i in range(len(df))],  # y축 레이블 수정
-        x=df['Actual Duration'] * (df['Percent Complete'] / 100),
-        base=df['Actual Start'],
-        orientation='h',
-        marker=dict(color='dodgerblue'),
-        name='진척도[%]',
-        hoverinfo='skip'
-    ))
-
-    # 업데이트 메뉴 추가
     fig.update_layout(
-        updatemenus=[
-            {
-                "buttons": [
-                    {
-                        "args": [{"visible": [True, False, False]}],
-                        "label": "계획 기간",
-                        "method": "update",
-                    },
-                    {
-                        "args": [{"visible": [False, True, False]}],
-                        "label": "실제 기간",
-                        "method": "update",
-                    },
-                    {
-                        "args": [{"visible": [False, False, True]}],
-                        "label": "진척도[%]",
-                        "method": "update",
-                    },
-                    {
-                        "args": [{"visible": [True, True, True]}],
-                        "label": "Show All",
-                        "method": "update",
-                    },
-                ],
-                "direction": "down",
-                "showactive": True,
-                "x": 0.00,  # x 위치 조정
-                "xanchor": "left",
-                "y": 1.15,  # y 위치 조정
-                "yanchor": "top"
-            }
-        ],
-        xaxis=dict(
-            range=[1, 14],  # 처음에 1일부터 14일까지 보이게 설정
-            tickmode='linear',
-            tick0=1,
-            dtick=1
-        ),
-        yaxis=dict(
-            title='Activities',
-            tickmode='array',
-            tickvals=[f'{i+1}번째 주 목표' for i in range(len(df))],  # y축 레이블 수정
-            ticktext=[f'{i+1}번째 주 목표' for i in range(len(df))]  # y축 레이블 텍스트 설정
-        ),
-        barmode='overlay',
-        xaxis_title='Days',
-        yaxis_title='Activities',
-        legend=dict(
-            x=0.22,
-            y=1.05,
-            orientation='h'
-        ),
-        annotations=[
-            dict(
-                x=0.96,  # 진척도 [%] 옆에 텍스트를 배치하기 위한 x 위치 조정
-                y=1.13,  # 범례와 같은 y 위치
-                xref='paper',
-                yref='paper',
-                text='👈 클릭하세요',
-                showarrow=False,
-                font=dict(size=18)
-            )
-        ],
-        height=600,
-        width=1000,
-        showlegend=True,  # 범례 표시
-        plot_bgcolor='#f9f9f9',  # Task Overview 컬럼 배경색과 동일하게 설정
-        margin=dict(t=20)  # 상단 여백 줄이기
+        title={"text": "전체 진척도", "x": 0.5, "xanchor": "center"},
+        annotations=[dict(text=f'{progress:.2f}%', x=0.5, y=0.5, font_size=20, showarrow=False)],
+        template='plotly_white',
+        height=300,  # 그래프 높이 조정
+        width=300   # 그래프 너비 조정
     )
 
-    # 가로 스크롤 바 추가
-    fig.update_xaxes(rangeslider_visible=True)
+    # 주간 목표 진척도
+    colors = px.colors.qualitative.Plotly
+    weekly_fig = px.bar(
+        x=[f"주 {i+1}" for i in range(len(weekly_progress))],
+        y=weekly_progress,
+        labels={'x': '주', 'y': '진척도 (%)'},
+        title="주간 진척도",
+        color=[f"주 {i+1}" for i in range(len(weekly_progress))],  # 색상 추가
+        color_discrete_sequence=colors
+    )
 
-    # 인터랙티브 차트 표시
-    st.plotly_chart(fig, use_container_width=True)
+    # Layout 조정
+    weekly_fig.update_layout(
+        template='plotly_white',
+        title={'x': 0.5, 'xanchor': 'center'},
+        xaxis_title="주",
+        yaxis_title="진척도 (%)",
+        showlegend=False,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=14),
+        height=300,  # 그래프 높이 조정
+        width=300   # 그래프 너비 조정
+    )
+
+    # 그래프를 가로로 나란히 표시
+    st.markdown("<div style='display: flex; justify-content: space-around;'>", unsafe_allow_html=True)
+    col3, col4 = st.columns(2)
+    with col3:
+        st.plotly_chart(fig, use_container_width=True)
+    with col4:
+        st.plotly_chart(weekly_fig, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # # 월별 달력 생성
+    # st.markdown("### 월별 달력")
+
+    # # 현재 달을 설정
+    # if 'current_month' not in st.session_state:
+    #     st.session_state.current_month = st.session_state.start_date.month
+
+    # current_month = st.session_state.current_month
+    # current_year = st.session_state.start_date.year
+
+    # # 월 변경 버튼
+    # col1, col2, col3 = st.columns(3)
+    # with col1:
+    #     if st.button("⬅️ 이전 달"):
+    #         st.session_state.current_month -= 1
+    #         if st.session_state.current_month < 1:
+    #             st.session_state.current_month = 12
+    #             st.session_state.start_date = st.session_state.start_date.replace(year=st.session_state.start_date.year - 1)
+    # with col3:
+    #     if st.button("다음 달 ➡️"):
+    #         st.session_state.current_month += 1
+    #         if st.session_state.current_month > 12:
+    #             st.session_state.current_month = 1
+    #             st.session_state.start_date = st.session_state.start_date.replace(year=st.session_state.start_date.year + 1)
+
+    # current_month = st.session_state.current_month
+    # current_year = st.session_state.start_date.year
+
+    # # 달력 데이터 생성
+    # calendar_data = []
+
+    # for day in st.session_state.todo_list:
+    #     date = st.session_state.start_date + timedelta(days=day['day'] - 1)
+    #     completed_tasks = sum(task['checked'] for task in day['tasks'])
+    #     calendar_data.append({
+    #         '날짜': date,
+    #         '완료된 작업': completed_tasks,
+    #         '총 작업': len(day['tasks'])
+    #     })
+
+    # df_calendar = pd.DataFrame(calendar_data)
+    # df_calendar['날짜'] = pd.to_datetime(df_calendar['날짜'])
+
+    # # 일간 진척도를 위한 그라데이션 색상
+    # def task_color(completed_tasks):
+    #     if completed_tasks == 0:
+    #         return 'white'
+    #     elif completed_tasks == 1:
+    #         return '#e0ffe0'  # 연한 초록색
+    #     elif completed_tasks == 2:
+    #         return '#a3e4a3'  # 중간 초록색
+    #     elif completed_tasks == 3:
+    #         return '#52b788'  # 진한 초록색
+    #     return 'white'
+
+    # df_calendar['color'] = df_calendar['완료된 작업'].apply(task_color)
+
+    # # 달력 스타일
+    # cal = calendar.Calendar()
+    # month_days = cal.monthdayscalendar(current_year, current_month)
+
+    # days_in_week = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+    # # 요일 헤더 표시
+    # cols = st.columns(7)
+    # for i, day in enumerate(days_in_week):
+    #     cols[i].markdown(f"<div style='text-align: center; color: white; background-color: lightpink; border-radius: 5px; padding: 10px 0;'>{day}</div>", unsafe_allow_html=True)
+
+    # # 달력 표시
+    # for week in month_days:
+    #     cols = st.columns(7)
+    #     for i, day in enumerate(week):
+    #         if day == 0:
+    #             cols[i].markdown(f"<div style='height: 50px; border: 1px solid lightgrey; border-radius: 5px;'></div>", unsafe_allow_html=True)
+    #         else:
+    #             date = datetime(current_year, current_month, day)
+    #             if date in df_calendar['날짜'].values:
+    #                 completed_tasks = df_calendar.loc[df_calendar['날짜'] == date, '완료된 작업'].values[0]
+    #                 if completed_tasks == 3:
+    #                     color_class = 'background-color: #52b788;'
+    #                 elif completed_tasks == 2:
+    #                     color_class = 'background-color: #a3e4a3;'
+    #                 elif completed_tasks == 1:
+    #                     color_class = 'background-color: #e0ffe0;'
+    #                 else:
+    #                     color_class = 'background-color: white;'
+    #             else:
+    #                 color_class = 'background-color: white;'
+
+    #             if cols[i].button(f"{day}", key=f'day_{day}', help=f'{day}일', use_container_width=True):
+    #                 st.session_state.selected_day = day
+    #                 st.session_state.page = 4
+    #                 st.experimental_rerun()
+
+    #             cols[i].markdown(f"<div style='height: 50px; text-align: center; {color_class} border: 1px solid lightgrey; border-radius: 5px;'>{day}</div>", unsafe_allow_html=True)
+
+    # 이전 버튼 
+    if st.button("⬅️ 뒤로", key='back_progress'):
+        st.session_state.page = 4
+        st.experimental_rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
