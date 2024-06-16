@@ -276,7 +276,6 @@ if st.session_state.page == 1:
 
 # 페이지 2: AI 코치 선택 페이지
 elif st.session_state.page == 2:
-    # st.markdown("<div class='main-container centered'>", unsafe_allow_html=True)
     st.markdown("<h1 class='title'>🗓️ 스파르탄 플래너</h1>", unsafe_allow_html=True)
     st.markdown("<h2 class='subtitle'>AI 코치를 선택하세요</h2>", unsafe_allow_html=True)
     
@@ -300,6 +299,13 @@ elif st.session_state.page == 2:
         if st.button(button_text, key=coach, use_container_width=True):
             st.session_state.page = 3
             st.session_state.coach = coach
+            # 초기화
+            st.session_state.messages = []
+            st.session_state.start_date = None
+            st.session_state.end_date = None
+            st.session_state.todo_list = None
+            st.session_state.final_goal = None
+            st.session_state.selected_day = None
             st.experimental_rerun()
     
     if st.button("⬅️ 뒤로", key='back_intro', help="Back", use_container_width=True):
